@@ -1,2 +1,2 @@
 # JazzHr-Automation
-This Script helps to clone jobs in JazzHr Platform.
+We are using Selenium and Python Requests to Automate Cloning jobs in Jazz Hr.
