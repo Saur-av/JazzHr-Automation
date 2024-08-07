@@ -17,18 +17,20 @@ class Job:
     id : int
     postal : str
 
-def create_job_payload(api_response,dataframe):
-
+def create_job_payload(api_response : dict[str:str],dataframe : list[str]) -> dict[str:str]:
+    '''api_response :- Contents from the API Call.
+    dataframe :- List With ['usState','usCity','usPostalCode']'''
     api_response["city"] =  dataframe[1]
     api_response["state"] =  dataframe[0]
-    api_response["postal"] =  dataframe[-1]
+    api_response["postal"] =  dataframe[2]
     api_response['status'] = 'Open'
     api_response['dateOpened'] = datetime.today().strftime('%Y-%m-%d')
     api_response['updatedAt'] = datetime.today().strftime('%Y-%m-%d')
 
     return api_response
 
-def close_payload(data):
+def close_payload(data : dict[str:str]) -> dict[str:str]:
+    '''Change the status of Job to Closed.'''
     data['status'] = 'Closed'
 
     return data
@@ -40,12 +42,13 @@ class Automation:
         self.driver.implicitly_wait(10)
         self.driver.maximize_window()
 
-        self.user_account : list[dict] = []
-        self.selected_account : int | None = None
-        self.account_name : str = ""
-        self.open_jobs : list[Job] = []
-        self.clone_jobs : list[dict] = {}
-        self.zip_codes = []
+        #Variables
+        self.user_account : list[dict] = [] #List of Sub Accounts
+        self.selected_account : int | None = None #ID of the Current Sub Account
+        self.account_name : str = "" #Name of the Current Sub Account
+        self.open_jobs : list[Job] = [] #List of Jobs waiting to be Enriched.
+        self.clone_jobs : list[dict] = {} #List of Jobs to be Cloned.
+        self.zip_codes = [] #List of all Available Zip codes from "Locations.csv".
 
     def authenticate(self):
         '''Authenticate the user with the credentials provided.'''
@@ -95,6 +98,7 @@ class Automation:
             print(f"Invalid Choice, Please choose [0-{max_accounts-1}]")
     
     def iterate_over_accounts(self,index):
+        #Iterator to select IDs based on the index in the Website.
         if index > 0 and index < len(self.user_account):
             raise IndexError("Index out of range!")
         
@@ -110,6 +114,7 @@ class Automation:
         print(f"\n Selected Account: {self.account_name}")
 
     def get_open_jobs(self):
+        #Retrives the Jobs currently Opened in the SubAccount
         self.update_cookies()
 
         permissions = self.session.get(f"https://api.jazz.co/user/me?expand=customer%2Ccustomer.groups%2Ccustomer.plan%2Ccustomer.settings%2Ccustomer.timeZone%2Ccustomer.brand%2CmasterUser%2CpartnerRole%2Crole").json()
@@ -121,6 +126,7 @@ class Automation:
             self.open_jobs.append(Job(job['title'], job['id'], job['postal'].zfill(5)))
         
     def scrape_job_details(self):
+        #Enriches the Scraped jobs from the get_open_jobs() function.
         self.update_cookies()
         
         for link in self.open_jobs:
@@ -137,6 +143,7 @@ class Automation:
             self.clone_jobs.append(job_details)
 
     def read_zip_codes_from_csv(self):
+        #Updates all of the Zip Codes from the "Locations.csv" file.
         self.zip_codes = []
         if not os.path.exists(FILE_NAME):
             raise FileNotFoundError(f"File {FILE_NAME},Not Found!")
@@ -147,6 +154,7 @@ class Automation:
                 self.zip_codes.append(row)
 
     def get_next_zip_code_line(self,target_zip):
+        #Looks for the postal code and returns the Next Postal code to be updated.
         if isinstance(target_zip,tuple):
             target_zip = target_zip[0]
 
@@ -162,6 +170,10 @@ class Automation:
         return None
 
     def clone(self):
+        '''Check for the Open Jobs in the SubAccount.
+        Tries to Close the Job Posting.
+        Then Tries to Clone Job Posting with the next Location.
+        '''
         self.update_cookies()
 
         for job in self.clone_jobs:
@@ -212,6 +224,7 @@ class Automation:
             return
 
     def shutdown(self):
+        '''Shutdown the browser.'''
         self.driver.quit()
         self.session.close()
 
